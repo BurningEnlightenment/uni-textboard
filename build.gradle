@@ -1,0 +1,11 @@
+
+apply plugin: 'java'
+apply plugin: 'application'
+group = 'onl.gassmann.textboard.server'
+mainClassName = 'onl.gassmann.textboard.server.Program'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
