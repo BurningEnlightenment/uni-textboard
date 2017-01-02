@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/TextBoard.iml" filepath="$PROJECT_DIR$/.idea/modules/TextBoard.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/TextBoard_main.iml" filepath="$PROJECT_DIR$/.idea/modules/TextBoard_main.iml" group="TextBoard" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/TextBoard_test.iml" filepath="$PROJECT_DIR$/.idea/modules/TextBoard_test.iml" group="TextBoard" />
+    </modules>
+  </component>
+</project>
