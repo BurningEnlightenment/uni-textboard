@@ -21,7 +21,7 @@ public final class CmdLineConfigurationSource
                 throw new RuntimeException("invalid option syntax: " + arg);
             }
 
-            addKeyValuePair(arg);
+            addKeyValuePair(arg.substring(2));
         }
     }
 }
