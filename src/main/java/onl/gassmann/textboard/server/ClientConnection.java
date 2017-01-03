@@ -1,8 +1,8 @@
 package onl.gassmann.textboard.server;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.logging.Logger;
 
 /**
@@ -15,6 +15,9 @@ public class ClientConnection implements Runnable, Closeable
     private final TextboardServer owner;
     private final Socket connection;
     private final String remoteAddress;
+
+    private final PrintWriter out;
+    private final BufferedReader in;
 
     public ClientConnection(Socket connection, TextboardServer owner)
     {
@@ -32,6 +35,34 @@ public class ClientConnection implements Runnable, Closeable
         remoteAddress = connection.getRemoteSocketAddress()
                 .toString();
         LOGGER.info("A new client connected from " + remoteAddress);
+
+        Charset charset = owner.charset();
+
+        // create a correctly encoding PrintWriter
+        try
+        {
+            OutputStream outStream = connection.getOutputStream();
+            OutputStreamWriter encodingWriter = new OutputStreamWriter(outStream, charset);
+            out = new PrintWriter(encodingWriter, false);
+        }
+        catch (IOException exc)
+        {
+            // todo proper exception throwing
+            throw new RuntimeException("Failed to create a print writer for connection " + remoteAddress + ".", exc);
+        }
+
+        // create a correctly decoding BufferedReader
+        try
+        {
+            InputStream inStream = connection.getInputStream();
+            InputStreamReader decodingReader = new InputStreamReader(inStream, charset);
+            in = new BufferedReader(decodingReader);
+        }
+        catch (IOException exc)
+        {
+            // todo proper exception throwing
+            throw new RuntimeException("Failed to create a buffered reader for connection " + remoteAddress + ".", exc);
+        }
     }
 
     @Override
@@ -43,7 +74,8 @@ public class ClientConnection implements Runnable, Closeable
     @Override
     public void close() throws IOException
     {
-
+        connection.close();
+        owner.notifyConnectionClosed(this);
     }
 
     public boolean isClosed()

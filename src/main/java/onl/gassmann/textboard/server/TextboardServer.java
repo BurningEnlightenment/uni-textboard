@@ -4,6 +4,7 @@ import org.omg.CORBA.TIMEOUT;
 
 import java.io.IOException;
 import java.net.*;
+import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -68,12 +69,20 @@ public class TextboardServer
                     LOGGER.warning("A server socket accept call timed out unexpectedly.");
                     continue;
                 }
-                // create a connection handler
-                ClientConnection client = new ClientConnection(clientSocket, this);
+                // todo seperate client connection creation failure from thread creation failure
+                try
+                {
+                    // create a connection handler
+                    ClientConnection client = new ClientConnection(clientSocket, this);
 
-                // create a new thread for the connection
-                new Thread(client, "Client|" + client.getRemoteAddress())
-                        .start();
+                    // create a new thread for the connection
+                    new Thread(client, "Client|" + client.getRemoteAddress())
+                            .start();
+                }
+                catch (RuntimeException exc)
+                {
+                    LOGGER.warning("Failed to create a client connection; details:\n" + exc);
+                }
             }
         }
         catch (SocketException exc)
@@ -129,5 +138,10 @@ public class TextboardServer
             throw new RuntimeException("client isn't closed");
         }
         connectedClients.remove(client);
+    }
+
+    public Charset charset()
+    {
+        return Charset.defaultCharset();
     }
 }
