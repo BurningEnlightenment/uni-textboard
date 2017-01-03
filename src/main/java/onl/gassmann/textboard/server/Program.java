@@ -24,7 +24,7 @@ public class Program
         Configuration config = configure(args);
 
         int returnCode = 0;
-        //TextboardServer srv = null;
+        TextboardServer srv = null;
         try
         {
             int port = config.getInt(OPT_PORT);
@@ -34,8 +34,8 @@ public class Program
                         "The option [port] must be an integer in the interval [0, 65535]. Actual value: " + port);
             }
 
-            //srv = new TextboardServer();
-            //srv.run(port);
+            srv = new TextboardServer();
+            srv.run(port);
         }
         catch (ExecutionAbortedException e)
         {
@@ -46,10 +46,6 @@ public class Program
         {
             LOGGER.severe("unhandled exception:\n" + e.toString() + "\n\nexiting...");
             returnCode = -1;
-        }
-        finally
-        {
-            //srv.cleanup();
         }
         System.exit(returnCode);
     }
