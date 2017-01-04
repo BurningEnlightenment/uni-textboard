@@ -6,8 +6,6 @@ import onl.gassmann.textboard.server.database.Topic;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.Charset;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
@@ -15,6 +13,9 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.logging.Logger;
 
 /**
+ * Runs the server listener loop.
+ * Furthermore it provides all client connections with global functionality like the message database
+ * and topic update notifications.
  * Created by gassmann on 2017-01-03.
  */
 class TextboardServer
@@ -28,6 +29,9 @@ class TextboardServer
     private final DbContext db;
     private final Charset networkCharset;
 
+    /**
+     * The constructor is used to inject configuration dependent Objects.
+     */
     public TextboardServer(DbContext db, Charset networkCharset)
     {
         if (networkCharset == null)
@@ -51,6 +55,11 @@ class TextboardServer
         }
     }
 
+    /**
+     * Runs the server accept loop.
+     * If the accept loop is stopped for some reason all lingering client connections will be closed.
+     * @param port the port on which the server shall listen for connection attempts
+     */
     public void run(int port)
     {
         try
@@ -87,7 +96,6 @@ class TextboardServer
                     LOGGER.warning("A server socket accept call timed out unexpectedly.");
                     continue;
                 }
-                // todo separate client connection creation failure from thread creation failure
                 try
                 {
                     // create a connection handler
@@ -138,6 +146,9 @@ class TextboardServer
         }
     }
 
+    /**
+     * Stops the server, i.e. closes the server socket. This will force the run method to return.
+     */
     public void stop()
     {
         try
@@ -161,16 +172,22 @@ class TextboardServer
         }
     }
 
+    /**
+     * Used to notify the server about a closed client connection which will then be removed from the internal
+     * connection tracker.
+     */
     public void notifyConnectionClosed(ClientConnection client)
     {
         if (!client.isClosed())
         {
-            // todo proper exception throwing
             throw new RuntimeException("client isn't closed");
         }
         connectedClients.remove(client);
     }
 
+    /**
+     * Adds a new message to the server database and notifies all connected clients about the updated topic.
+     */
     public void addNewMessage(String[] lines)
     {
         Topic updated = db.put(lines);

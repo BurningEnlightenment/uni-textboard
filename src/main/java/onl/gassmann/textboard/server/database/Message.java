@@ -16,17 +16,23 @@ import java.util.logging.Logger;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
+ * Message meta data view.
+ * Also contains utilities to load the message from file and write a new message to file.
+ *
  * Created by gassmann on 2017-01-03.
  */
 public class Message
 {
+    // the timestamp comparator featuring an descending sorting by message timestamp
     public static final Comparator<Message> TIMESTAMP_COMPARATOR
             = Comparator.comparing(msg -> msg.timestamp, Comparator.reverseOrder());
 
     private static final Logger LOGGER = Logger.getLogger(Message.class.getName());
 
+    // the topic string
     public final String topicValue;
     public final Instant timestamp;
+    // message file path
     final Path path;
 
     /**
@@ -45,7 +51,7 @@ public class Message
     }
 
     /**
-     * internal constructor which constructs metadata for an existing message from disk
+     * internal constructor which loads metadata of an existing message from disk
      *
      * @param path the file path
      * @param expectedTopic the topic to which this message should belong
@@ -117,6 +123,10 @@ public class Message
         }
     }
 
+    /**
+     * Creates a message object directly from the given values.
+     * Is (and should) only (be) used from the create method.
+     */
     private Message(String topic, Instant timestamp, Path path)
     {
         this.path = path;
@@ -129,6 +139,10 @@ public class Message
         return timestamp != null && topicValue != null && path != null && Files.isRegularFile(path);
     }
 
+    /**
+     * Reads the message content from disk (without the number of lines line).
+     * @return the message lines or null on failure
+     */
     public List<String> content()
     {
         try
@@ -142,6 +156,10 @@ public class Message
         }
     }
 
+    /**
+     * Reads the message content from disk (including the number of lines line).
+     * @return the message lines or null on failure
+     */
     public List<String> format()
     {
         List<String> content = content();
@@ -152,6 +170,12 @@ public class Message
         return content;
     }
 
+    /**
+     * Creates, validates and writes a new message to disk. Also assigns the timestamp (the first line ine the lines
+     * array will be changed)
+     * @param lines the raw message data (without the number of lines line)
+     * @return the created message
+     */
     static Message create(final Path topicDbPath, final String[] lines)
     {
         if (lines == null)
@@ -185,10 +209,12 @@ public class Message
                                                        + "] is not a valid number (or maybe too big)", exc);
         }
 
+        // retrieve topic string from the meta line and derive the target directory
         final String topic = metaLine.substring(separatorIndex + 1);
         final Path topicPath = topicDbPath.resolve(Topic.encodeFilename(topic));
         try
         {
+            // create the directory if it doesn't exist
             Files.createDirectories(topicPath);
         }
         catch (IOException e)
@@ -196,6 +222,8 @@ public class Message
             throw new RuntimeException("Failed to create topic directory \"" + topicPath + "\"; details:\n" + e, e);
         }
 
+        // we write the message to a temporary location first and than move it atomically to the right location
+        // that way we avoid a corrupted database state.
         final Path tmpPath;
         try
         {
@@ -245,25 +273,24 @@ public class Message
             }
             catch (IOException e2)
             {
-                throw new RuntimeException("Failed to move the message to the topic directory.", e2);
-            }
-            finally
-            {
                 try
                 {
+                    // try to remove the now obsolete temporary file
                     Files.delete(tmpPath);
                 }
-                catch (Exception e2)
+                catch (Exception e3)
                 {
                     // there is nothing left we can do about the lingering file at this point
                     LOGGER.warning("Failed to delete obsolete temporary file: " + tmpPath);
                 }
+                throw new RuntimeException("Failed to move the message to the topic directory.", e2);
             }
         }
         catch (IOException e)
         {
             try
             {
+                // try to remove the now obsolete temporary file
                 Files.delete(tmpPath);
             }
             catch (Exception e2)
@@ -274,6 +301,8 @@ public class Message
             throw new RuntimeException("Failed to move the message to the topic directory.", e);
         }
 
+        // Hooray! we succeeded and create the message meta data object
+        // based on the values we obtained during the process.
         return new Message(topic, timestamp, msgPath);
     }
 }

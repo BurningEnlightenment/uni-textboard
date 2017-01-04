@@ -4,17 +4,12 @@ package onl.gassmann.textboard.server;
 import onl.gassmann.config.*;
 import onl.gassmann.textboard.server.database.DbContext;
 
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.logging.FileHandler;
-import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
 
 /**
  * Created by henrik on 2016-12-15.
@@ -35,7 +30,7 @@ public class Program
         TextboardServer srv;
         try
         {
-            // prepare message database first
+            // load existing message database from configured file
             DbContext db;
             Path dbPath = Paths.get(config.getString(OPT_DATABASE));
             try
@@ -47,6 +42,7 @@ public class Program
                 throw new ExecutionAbortedException("Failed to read the message database from " + dbPath, e);
             }
 
+            // validate the port option
             int port = config.getInt(OPT_PORT);
             if (port < 0 || port > 65535)
             {
@@ -54,6 +50,7 @@ public class Program
                         "The option [port] must be an integer in the interval [0, 65535]. Actual value: " + port);
             }
 
+            // retrieve the configured network character encoding
             Charset charset;
             try
             {
@@ -65,6 +62,7 @@ public class Program
                 throw new ExecutionAbortedException("The configured charset \"" + value + "\" could not be loaded", e);
             }
 
+            // instantiate and run the server
             srv = new TextboardServer(db, charset);
             srv.run(port);
         }

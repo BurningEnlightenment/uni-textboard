@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
+ * Models a client connection i.e. implements communication with connected clients, instruction parsing and handling
  * Created by gassmann on 2017-01-03.
  */
 class ClientConnection implements Runnable,
@@ -389,8 +390,17 @@ class ClientConnection implements Runnable,
                                     + remoteAddress, e);
                 }
             }
-            // if everything went well we add the new message to our TextBoard
-            owner.addNewMessage(lines);
+
+            try
+            {
+                // if everything went well we add the new message to our TextBoard
+                owner.addNewMessage(lines);
+            }
+            catch (RuntimeException e)
+            {
+                writeError("Failed to add the message to the database; details: " + e.getMessage());
+                break;
+            }
         }
     }
 
