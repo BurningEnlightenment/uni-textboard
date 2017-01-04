@@ -1,11 +1,15 @@
 
 apply plugin: 'java'
 apply plugin: 'application'
-group = 'onl.gassmann.textboard.server'
+group = 'onl.gassmann'
 mainClassName = 'onl.gassmann.textboard.server.Program'
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
-repositories {
-    mavenCentral()
+jar {
+  manifest {
+    attributes(
+      'Main-Class': 'onl.gassmann.textboard.server.Program'
+    )
+  }
 }
