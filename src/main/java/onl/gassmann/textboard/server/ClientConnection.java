@@ -493,7 +493,7 @@ class ClientConnection implements Runnable,
             out.println("N " + updatedTopics.size());
             updatedTopics.entrySet()
                     .stream()
-                    .map(pair -> pair.getValue())
+                    .map(Map.Entry::getValue)
                     .sorted(Topic.TIMESTAMP_COMPARATOR)
                     .map(topic -> "" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value)
                     .forEachOrdered(out::println);

@@ -46,3 +46,10 @@ absoluter Verzeichnispfad in welchem sich die Datenbank befindet oder
 angelegt werden soll. Standardwert: Ausführungsverzeichnis
 * `charset`: String. Spezifiziert den Zeichensatz mit welchem die Netz-
 werkkommunikation kodiert wird. Standardwert: Systemstandard
+
+Zudem verwendet das Projekt die Standard Java log Klassen, welche über
+Standard Java `*.properties` Dateien konfiguriert werden kann. Ich habe
+der Distribution eine Beispielkonfiguration beigelegt, deren Nutzung
+explizit per `-Djava.util.logging.config.file=logging.properties`
+aktiviert werden muss.
+

@@ -29,13 +29,13 @@ public class Program
 
     public static void main(String[] args)
     {
-        setupLogging();
         Configuration config = configure(args);
 
         int returnCode = 0;
         TextboardServer srv;
         try
         {
+            // prepare message database first
             DbContext db;
             Path dbPath = Paths.get(config.getString(OPT_DATABASE));
             try
@@ -81,6 +81,11 @@ public class Program
         System.exit(returnCode);
     }
 
+    /**
+     * Builds the configuration from command line arguments and the configuration file.
+     * If I had known that java has sufficient utilities to parse .properties files I probably would have used
+     * that instead :/
+     */
     private static Configuration configure(String[] args)
     {
         // define configuration options
@@ -133,26 +138,6 @@ public class Program
             // this is essentially dead code, because we obviously either return the build
             // configuration or exit with an error code, but javac doesn't know...
             throw e;
-        }
-    }
-
-    private static void setupLogging()
-    {
-        Logger global = Logger.getGlobal();
-        global.setLevel(Level.INFO);
-
-        SimpleFormatter fileFormatter = new SimpleFormatter();
-        FileHandler logFileHandler;
-        try
-        {
-            logFileHandler = new FileHandler("server.log");
-            logFileHandler.setLevel(Level.INFO);
-            logFileHandler.setFormatter(fileFormatter);
-            global.addHandler(logFileHandler);
-        }
-        catch (IOException e)
-        {
-            global.severe("Failed to open logfile; details:\n" + e.toString());
         }
     }
 }
