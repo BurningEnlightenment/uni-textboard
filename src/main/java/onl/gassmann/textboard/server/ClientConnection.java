@@ -8,10 +8,7 @@ import java.net.Socket;
 import java.nio.charset.Charset;
 import java.time.DateTimeException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -65,7 +62,6 @@ class ClientConnection implements Runnable,
         }
         catch (IOException exc)
         {
-            // todo proper exception throwing
             throw new RuntimeException("Failed to create a print writer for connection " + remoteAddress + ".", exc);
         }
 
@@ -78,7 +74,6 @@ class ClientConnection implements Runnable,
         }
         catch (IOException exc)
         {
-            // todo proper exception throwing
             throw new RuntimeException("Failed to create a buffered reader for connection " + remoteAddress + ".", exc);
         }
     }
@@ -88,6 +83,8 @@ class ClientConnection implements Runnable,
     {
         try
         {
+            // connection main loop
+            // we loop until something very bad happens (e.g. connection reset) or the client gracefully disconnects
             while (!connection.isInputShutdown())
             {
                 final String instruction;
@@ -104,6 +101,7 @@ class ClientConnection implements Runnable,
                 if (instruction.length() < 1)
                 {
                     writeError("Got an empty line instead of an instruction.");
+                    continue;
                 }
 
                 boolean skipTopicUpdate = false;
@@ -152,6 +150,7 @@ class ClientConnection implements Runnable,
         }
         finally
         {
+            // always close the connection in order to avoid native resource leaks
             try
             {
                 connection.close();
@@ -163,13 +162,18 @@ class ClientConnection implements Runnable,
             }
             finally
             {
+                // notify the server that this connection is no longer active
                 owner.notifyConnectionClosed(this);
             }
         }
     }
 
-    private void onNewsCommand(String instruction)
+    /**
+     * Handles the W [timestamp] command,
+     */
+    private void onNewsCommand(final String instruction)
     {
+        // validate instruction
         final int instructionLength = instruction.length();
         if (instructionLength == 1 || instructionLength == 2 && instruction.charAt(1) == ' ')
         {
@@ -204,14 +208,19 @@ class ClientConnection implements Runnable,
         List<Message> msgList = owner.getDb()
                 .getMessagesOrderedByTimestamp();
 
+        // determine which messages need to be send to the client.
         int listSize = msgList.size();
         int limit = Collections.binarySearch(msgList, constraint, Message.TIMESTAMP_COMPARATOR);
         if (limit < 0)
         {
+            // no messages which exactly match the timestamp (see binarySearch documentation)
             limit = -limit - 1;
         }
         else
         {
+            // we have one or more messages which have exactly the requested timestamp which we *all* include in our
+            // response. Ich habe das "seit" in der Aufgabenstellung als inklusiv interpretiert, wäre ein exklusives
+            // limit gefordert müsste man einfach an dieser Stelle dekrementieren.
             do
             {
                 limit += 1;
@@ -220,6 +229,7 @@ class ClientConnection implements Runnable,
                     && Message.TIMESTAMP_COMPARATOR.compare(constraint, msgList.get(limit)) == 0);
         }
 
+        // write all messages to the client
         out.println(limit);
         msgList.stream()
                 .limit(limit)
@@ -229,8 +239,12 @@ class ClientConnection implements Runnable,
         out.flush();
     }
 
+    /**
+     * Handles the T [topic] command.
+     */
     private void onTopicCommand(final String instruction)
     {
+        // validate instruction
         final int instructionLength = instruction.length();
         if (instructionLength == 1 || instructionLength == 2 && instruction.charAt(1) == ' ')
         {
@@ -243,21 +257,26 @@ class ClientConnection implements Runnable,
             return;
         }
 
+        // retrieve topic entry from database
         String topicId = instruction.substring(2);
         Topic topic = owner.getDb()
                 .getTopic(topicId);
         if (topic == null)
         {
+            // no messages regarding this topic -> we send an empty message list because it wasn't specified whether
+            // this should be an error or not.
             out.println("0");
             return;
         }
 
+        // read all messages of the requested topic into memory and discard those entries where the read operation failed
         List<List<String>> contentList = topic.getMessages()
                 .stream()
                 .map(Message::format)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
+        // now we simply print the number of messages and the already formatted messages
         out.println(contentList.size());
         contentList.stream()
                 .flatMap(List::stream)
@@ -265,8 +284,13 @@ class ClientConnection implements Runnable,
         out.flush();
     }
 
+    /**
+     * Handles the X command.
+     * @return true if invocation was successful.
+     */
     private boolean onExitCommand(final String instruction)
     {
+        // validate instruction
         if (instruction.length() != 1)
         {
             // X followed by an argument
@@ -286,8 +310,12 @@ class ClientConnection implements Runnable,
         return true;
     }
 
+    /**
+     * Handles the P command.
+     */
     private void onPutCommand(final String instruction)
     {
+        // validate instruction
         if (instruction.length() != 1)
         {
             // P followed by an argument
@@ -295,6 +323,7 @@ class ClientConnection implements Runnable,
             return;
         }
 
+        // the next line must be the number of messages to expect
         int numMsgs;
         try
         {
@@ -314,13 +343,14 @@ class ClientConnection implements Runnable,
         }
         if (numMsgs < 0)
         {
-            writeError("the number of messages must not be a negative number.");
+            writeError("The number of messages must not be a negative number.");
             return;
         }
 
         // receive messages
         for (int i = 0; i < numMsgs; ++i)
         {
+            // how many lines does the message consist of?
             int numLines;
             try
             {
@@ -343,6 +373,8 @@ class ClientConnection implements Runnable,
                 writeError("the number of lines in a message must not be a negative number.");
                 return;
             }
+
+            // read as many lines as specified from the connection
             String[] lines = new String[numLines];
             for (int j = 0; j < numLines; ++j)
             {
@@ -357,6 +389,7 @@ class ClientConnection implements Runnable,
                                     + remoteAddress, e);
                 }
             }
+            // if everything went well we add the new message to our TextBoard
             owner.addNewMessage(lines);
         }
     }
@@ -415,32 +448,58 @@ class ClientConnection implements Runnable,
         out.flush();
     }
 
+    /**
+     * Closes this connection.
+     * @throws IOException
+     */
     @Override
     public void close() throws IOException
     {
         connection.shutdownInput();
     }
 
+    /**
+     * Feeds a changed topic which will be appended after the next response.
+     * @param topic
+     */
     public void notifyTopicChanged(Topic topic)
     {
-        topicChangeQueue.add(topic);
+        if (topic != null)
+        {
+            topicChangeQueue.add(topic);
+        }
     }
 
+    /**
+     * Writes all changed topics to the client.
+     */
     private void writeTopicUpdates()
     {
-        ArrayList<Topic> updatedTopics = new ArrayList<>();
+        // poll the thread safe queue until empty
+        HashMap<String, Topic> updatedTopics = new HashMap<>();
         for (Topic topic = topicChangeQueue.poll(); topic != null; topic = topicChangeQueue.poll())
         {
-            updatedTopics.add(topic);
-        }
-        if (updatedTopics.size() > 0)
-        {
-            out.println("N " + updatedTopics.size());
-            for (Topic topic : updatedTopics)
+            // deduplicate entries in the queue, if a topic was updated twice we only include the later updated entry
+            Topic dupe = updatedTopics.get(topic.value);
+            if (dupe == null || dupe != topic && dupe.lastPostTimestamp.compareTo(topic.lastPostTimestamp) == -1)
             {
-                out.println("" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value);
+                updatedTopics.put(topic.value, topic);
             }
         }
+
+        if (!updatedTopics.isEmpty())
+        {
+            // we write the number of topics and afterwards a line per topic in the order of their timestamp (newest first)
+            out.println("N " + updatedTopics.size());
+            updatedTopics.entrySet()
+                    .stream()
+                    .map(pair -> pair.getValue())
+                    .sorted(Topic.TIMESTAMP_COMPARATOR)
+                    .map(topic -> "" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value)
+                    .forEachOrdered(out::println);
+        }
+
+        // generally flush the output buffer
         out.flush();
     }
 
@@ -454,6 +513,9 @@ class ClientConnection implements Runnable,
         return remoteAddress;
     }
 
+    /**
+     * Helper function for error cases.
+     */
     private void writeError(String msg)
     {
         out.println("E " + msg);
