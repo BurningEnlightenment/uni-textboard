@@ -8,7 +8,10 @@ import java.net.Socket;
 import java.nio.charset.Charset;
 import java.time.DateTimeException;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -18,7 +21,8 @@ import java.util.stream.Stream;
 /**
  * Created by gassmann on 2017-01-03.
  */
-class ClientConnection implements Runnable, Closeable
+class ClientConnection implements Runnable,
+        Closeable
 {
     private static final Logger LOGGER = Logger.getLogger(TextboardServer.class.getName());
     private static final AtomicInteger ID_PROVIDER = new AtomicInteger();
@@ -153,7 +157,8 @@ class ClientConnection implements Runnable, Closeable
             }
             catch (IOException exc)
             {
-                LOGGER.severe("Failed to close the socket for " + getRemoteAddress() + "; details:\n" + exc.getMessage());
+                LOGGER.severe(
+                        "Failed to close the socket for " + getRemoteAddress() + "; details:\n" + exc.getMessage());
             }
             finally
             {
@@ -206,11 +211,12 @@ class ClientConnection implements Runnable, Closeable
         }
         else
         {
-            while (++limit < listSize
-                    && Message.TIMESTAMP_COMPARATOR.compare(constraint, msgList.get(limit)) == 0)
+            do
             {
+                limit += 1;
             }
-
+            while (limit < listSize
+                    && Message.TIMESTAMP_COMPARATOR.compare(constraint, msgList.get(limit)) == 0);
         }
 
         out.println(limit);
@@ -237,7 +243,8 @@ class ClientConnection implements Runnable, Closeable
         }
 
         String topicId = instruction.substring(2);
-        Topic topic = owner.getDb().getTopic(topicId);
+        Topic topic = owner.getDb()
+                .getTopic(topicId);
         if (topic == null)
         {
             out.println("0");
@@ -389,7 +396,8 @@ class ClientConnection implements Runnable, Closeable
             }
         }
 
-        List<Topic> topics = owner.getDb().getTopicsOrderedByTimestamp();
+        List<Topic> topics = owner.getDb()
+                .getTopicsOrderedByTimestamp();
 
         // print the number of topics (one per line) we are going to send.
         out.println(Integer.min(topics.size(), numTopicLimit));

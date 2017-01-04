@@ -14,9 +14,9 @@ import java.util.logging.SimpleFormatter;
  */
 public class Program
 {
-    public static final Logger LOGGER = Logger.getLogger(Program.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(Program.class.getName());
 
-    public static final String OPT_PORT = "port";
+    private static final String OPT_PORT = "port";
 
     public static void main(String[] args)
     {
@@ -24,7 +24,7 @@ public class Program
         Configuration config = configure(args);
 
         int returnCode = 0;
-        TextboardServer srv = null;
+        TextboardServer srv;
         try
         {
             int port = config.getInt(OPT_PORT);
@@ -63,7 +63,7 @@ public class Program
         try
         {
             configBuilder.source(new FileConfigurationSource(FileSystems.getDefault()
-                    .getPath("server.cfg")));
+                                                                     .getPath("server.cfg")));
         }
         catch (RuntimeException e)
         {

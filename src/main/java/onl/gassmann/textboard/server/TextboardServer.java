@@ -29,7 +29,9 @@ class TextboardServer
 
     public TextboardServer()
     {
-        Path dbPath = Paths.get("").toAbsolutePath().resolve("db");
+        Path dbPath = Paths.get("")
+                .toAbsolutePath()
+                .resolve("db");
         try
         {
             db = new DbContext(dbPath);
@@ -117,7 +119,7 @@ class TextboardServer
         finally
         {
             // try to gracefully shutdown as many client connections as possible
-            for (Iterator<ClientConnection> it = connectedClients.iterator(); it.hasNext();)
+            for (Iterator<ClientConnection> it = connectedClients.iterator(); it.hasNext(); )
             {
                 ClientConnection client = it.next();
                 if (client != null)

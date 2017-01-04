@@ -19,7 +19,7 @@ public final class OptionBuilder
     {
         if (name.contains("-") || name.contains(" ") || name.contains("="))
         {
-            // todo throw proper excxeption
+            // todo throw proper exception
             throw new RuntimeException("invalid option name: " + name);
         }
         this.name = name;

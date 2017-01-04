@@ -3,7 +3,7 @@ package onl.gassmann.textboard.server;
 /**
  * Created by Henrik Gaßmann on 2016-12-16.
  */
-public class ExecutionAbortedException extends RuntimeException
+class ExecutionAbortedException extends RuntimeException
 {
     public ExecutionAbortedException()
     {

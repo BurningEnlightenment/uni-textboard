@@ -1,7 +1,5 @@
 package onl.gassmann.textboard.server.database;
 
-import sun.rmi.runtime.Log;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -9,9 +7,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -20,7 +20,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class Message
 {
-    public static final Comparator<Message> TIMESTAMP_COMPARATOR = (a, b) -> b.timestamp.compareTo(a.timestamp);
+    public static final Comparator<Message> TIMESTAMP_COMPARATOR
+            = Comparator.comparing(msg -> msg.timestamp, Comparator.reverseOrder());
 
     private static final Logger LOGGER = Logger.getLogger(Message.class.getName());
 
@@ -43,7 +44,9 @@ public class Message
 
     /**
      * internal constructor which constructs metadata for an existing message from disk
-     * @param path
+     *
+     * @param path the file path
+     * @param expectedTopic the topic to which this message should belong
      */
     Message(Path path, String expectedTopic)
     {
@@ -157,27 +160,27 @@ public class Message
 
         // validate meta line first
         String metaLine = lines[0];
-        final int seperatorIndex = metaLine.indexOf(' ');
-        if (seperatorIndex < 1)
+        final int separatorIndex = metaLine.indexOf(' ');
+        if (separatorIndex < 1)
         {
-            throw new IllegalArgumentException("Malformed meta line: either missing topic seperator or timestamp.");
+            throw new IllegalArgumentException("Malformed meta line: either missing topic separator or timestamp.");
         }
-        if (metaLine.length() == seperatorIndex)
+        if (metaLine.length() == separatorIndex)
         {
             throw new IllegalArgumentException("Malformed meta line: no topic provided");
         }
         try
         {
-            Long.parseUnsignedLong(metaLine.substring(0, seperatorIndex));
+            Long.parseUnsignedLong(metaLine.substring(0, separatorIndex));
         }
         catch (NumberFormatException exc)
         {
             throw new IllegalArgumentException("Malformed meta line: the timestamp ["
-                                                   + metaLine.substring(0, seperatorIndex)
-                                                   + "] is not a valid number (or maybe too big)", exc);
+                                                       + metaLine.substring(0, separatorIndex)
+                                                       + "] is not a valid number (or maybe too big)", exc);
         }
 
-        String topic = metaLine.substring(seperatorIndex+1);
+        String topic = metaLine.substring(separatorIndex + 1);
         Path topicPath = topicDbPath.resolve(Topic.encodeFilename(topic));
         try
         {
@@ -221,7 +224,8 @@ public class Message
         }
 
         // create a random file name within the topic dir (we abuse an universally unique identifier for this purpose)
-        Path msgPath = topicPath.resolve(UUID.randomUUID().toString());
+        Path msgPath = topicPath.resolve(UUID.randomUUID()
+                                                 .toString());
         try
         {
             // try to move the file atomically, so we ideally never have to deal with inconsistent database state

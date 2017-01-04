@@ -1,7 +1,6 @@
 package onl.gassmann.textboard.server.database;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -91,23 +90,24 @@ public class DbContext
 
             this.topicsByTimestamp = Collections.unmodifiableList(
                     topicPaths.filter(path -> b64Predicate.test(path.getFileName()
-                                                                          .toString()) && Files.isDirectory(path))
-                    .map(Topic::new)
-                    .filter(Topic::isValid)
-                    .sorted(Topic.TIMESTAMP_COMPARATOR)
-                    .collect(Collectors.toList()));
+                                                                        .toString()) && Files.isDirectory(path))
+                            .map(Topic::new)
+                            .filter(Topic::isValid)
+                            .sorted(Topic.TIMESTAMP_COMPARATOR)
+                            .collect(Collectors.toList()));
 
             this.topics = topicsByTimestamp.stream()
                     .collect(Collectors.toConcurrentMap(topic -> topic.value, Function.identity(), (l, r) -> l,
                                                         ConcurrentHashMap::new
                     ));
 
+            //noinspection RedundantCast
             this.messagesByTimestamp = Collections.unmodifiableList(
-                    (ArrayList<Message>)topicsByTimestamp.stream()
-                    .map(Topic::getMessages)
-                    .flatMap(List::stream)
-                    .sorted(Message.TIMESTAMP_COMPARATOR)
-                    .collect(Collectors.toCollection(ArrayList::new)));
+                    (ArrayList<Message>) topicsByTimestamp.stream()
+                            .map(Topic::getMessages)
+                            .flatMap(List::stream)
+                            .sorted(Message.TIMESTAMP_COMPARATOR)
+                            .collect(Collectors.toCollection(ArrayList::new)));
         }
     }
 
@@ -155,7 +155,7 @@ public class DbContext
             if (it.hasPrevious())
             {
                 int insertionIndex = it.previousIndex();
-                msgIndex.addAll(messagesByTimestamp.subList(0,insertionIndex));
+                msgIndex.addAll(messagesByTimestamp.subList(0, insertionIndex));
                 msgIndex.add(msg);
                 msgIndex.addAll(messagesByTimestamp.subList(insertionIndex, messagesByTimestamp.size()));
             }

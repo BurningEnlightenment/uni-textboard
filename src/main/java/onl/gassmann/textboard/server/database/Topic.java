@@ -1,7 +1,5 @@
 package onl.gassmann.textboard.server.database;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -10,9 +8,9 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.function.Function;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,7 +29,8 @@ public class Topic
             .onMalformedInput(CodingErrorAction.REPORT)
             .onUnmappableCharacter(CodingErrorAction.REPORT));
 
-    public static final Comparator<Topic> TIMESTAMP_COMPARATOR = (a, b) -> b.lastPostTimestamp.compareTo(a.lastPostTimestamp);
+    public static final Comparator<Topic> TIMESTAMP_COMPARATOR
+            = Comparator.comparing(topic -> topic.lastPostTimestamp, Comparator.reverseOrder());
 
     public final String value;
     public final Path path;
@@ -42,7 +41,8 @@ public class Topic
     Topic(Path path)
     {
         // derive topic string from path
-        value = decodeFilename(path.getFileName().toString());
+        value = decodeFilename(path.getFileName()
+                                       .toString());
 
         if (value != null)
         {
