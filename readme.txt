@@ -38,4 +38,10 @@ Argumente die Form `--key=value` haben und etwaige Leerzeichen im `value`
 Teil müssen escaped werden (z.B. `--key="va lue"` oder `"--key=va lue"`).
 
 Die Programmoptionen sind:
-* `port`: eine positive Ganzzahl kleiner 653
+* `port`: eine positive Ganzzahl kleiner 65536; der Port an dem der
+Server neue Verbindungen akzeptiert. Standardwert: `4242`
+* `database_directory`: relativer (zum Ausführungsverzeichnis) oder
+absoluter Verzeichnispfad in welchem sich die Datenbank befindet oder
+angelegt werden soll. Standardwert: Ausführungsverzeichnis
+* `charset`: String. Spezifiziert den Zeichensatz mit welchem die Netz-
+werkkommunikation kodiert wird. Standardwert: Systemstandard
