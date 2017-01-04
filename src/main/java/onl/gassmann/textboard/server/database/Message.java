@@ -120,6 +120,16 @@ public class Message
         }
     }
 
+    public List<String> format()
+    {
+        List<String> content = content();
+        if (content != null)
+        {
+            content.add(0, Integer.toString(content.size()));
+        }
+        return content;
+    }
+
     static Message create(final Path topicDbPath, final String[] lines)
     {
         if (lines == null)

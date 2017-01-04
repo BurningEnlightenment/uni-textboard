@@ -105,7 +105,8 @@ public class DbContext
 
             this.messagesByTimestamp = Collections.unmodifiableList(
                     topicsByTimestamp.stream()
-                    .flatMap(topic -> topic.messages.stream())
+                    .map(Topic::getMessages)
+                    .flatMap(List::stream)
                     .sorted(Message.TIMESTAMP_COMPARATOR)
                     .collect(Collectors.toList()));
         }

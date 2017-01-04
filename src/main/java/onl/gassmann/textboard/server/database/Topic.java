@@ -37,7 +37,7 @@ public class Topic
     public final Path path;
     public final Instant lastPostTimestamp;
 
-    final List<Message> messages;
+    private final List<Message> messages;
 
     Topic(Path path)
     {
@@ -108,9 +108,9 @@ public class Topic
         return value != null && path != null && messages != null && !messages.isEmpty();
     }
 
-    Topic add(Message msg)
+    public List<Message> getMessages()
     {
-        throw new NotImplementedException();
+        return messages;
     }
 
     private static String decodeFilename(String filename)
