@@ -1,12 +1,10 @@
 package onl.gassmann.textboard.server.database;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ListIterator;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -69,6 +67,7 @@ public class DbContext
 
             topics = new ConcurrentHashMap<>();
             topicsByTimestamp = new LinkedList<>();
+            messagesByTimestamp = new ArrayList<>();
         }
         else if (!Files.isDirectory(topicDbPath))
         {
@@ -104,11 +103,11 @@ public class DbContext
                     ));
 
             this.messagesByTimestamp = Collections.unmodifiableList(
-                    topicsByTimestamp.stream()
+                    (ArrayList<Message>)topicsByTimestamp.stream()
                     .map(Topic::getMessages)
                     .flatMap(List::stream)
                     .sorted(Message.TIMESTAMP_COMPARATOR)
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toCollection(ArrayList::new)));
         }
     }
 
@@ -142,9 +141,9 @@ public class DbContext
             throw new RuntimeException("Temporary failure: could not create topic index with the new message.");
         }
 
-        LinkedList<Message> msgIndex = new LinkedList<>(messagesByTimestamp);
+        ArrayList<Message> msgIndex = new ArrayList<>(messagesByTimestamp.size() + 1);
         {
-            ListIterator<Message> it = msgIndex.listIterator();
+            ListIterator<Message> it = messagesByTimestamp.listIterator();
             while (it.hasNext())
             {
                 Message nxt = it.next();
@@ -155,9 +154,16 @@ public class DbContext
             }
             if (it.hasPrevious())
             {
-                it.previous();
+                int insertionIndex = it.previousIndex();
+                msgIndex.addAll(messagesByTimestamp.subList(0,insertionIndex));
+                msgIndex.add(msg);
+                msgIndex.addAll(messagesByTimestamp.subList(insertionIndex, messagesByTimestamp.size()));
             }
-            it.add(msg);
+            else
+            {
+                msgIndex.add(msg);
+                msgIndex.addAll(messagesByTimestamp);
+            }
         }
 
         LinkedList<Topic> topicIndex = topicsByTimestamp.stream()

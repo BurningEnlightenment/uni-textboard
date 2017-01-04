@@ -28,6 +28,20 @@ public class Message
     final Path path;
 
     /**
+     * constructs an invalid message which can be used to search in a list of messages for a specific timestamp with
+     * standard java utils.
+     */
+    public Message(final Instant timestamp)
+    {
+        if (timestamp == null)
+        {
+            throw new NullPointerException("timestamp == null");
+        }
+        this.timestamp = timestamp;
+        path = null;
+    }
+
+    /**
      * internal constructor which constructs metadata for an existing message from disk
      * @param path
      */
@@ -104,7 +118,7 @@ public class Message
 
     boolean isValid()
     {
-        return timestamp != null && Files.isRegularFile(path);
+        return timestamp != null && path != null && Files.isRegularFile(path);
     }
 
     public List<String> content()

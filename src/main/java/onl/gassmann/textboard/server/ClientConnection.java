@@ -6,10 +6,9 @@ import onl.gassmann.textboard.server.database.Topic;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -127,7 +126,7 @@ class ClientConnection implements Runnable, Closeable
 
                     // get all message newer than the specified time point
                     case 'W':
-                        writeError("the retrieve command is not yet implemented.");
+                        onNewsCommand(instruction);
                         break;
 
                     default:
@@ -161,6 +160,66 @@ class ClientConnection implements Runnable, Closeable
                 owner.notifyConnectionClosed(this);
             }
         }
+    }
+
+    private void onNewsCommand(String instruction)
+    {
+        final int instructionLength = instruction.length();
+        if (instructionLength == 1 || instructionLength == 2 && instruction.charAt(1) == ' ')
+        {
+            writeError("the W command is missing it's argument.");
+            return;
+        }
+        else if (instructionLength == 2)
+        {
+            writeError("invalid command \"" + instruction + "\".");
+            return;
+        }
+
+        final Instant since;
+        try
+        {
+            long rawSince = Long.parseLong(instruction.substring(2));
+            since = Instant.ofEpochSecond(rawSince);
+        }
+        catch (NumberFormatException e)
+        {
+            writeError("the argument for W must be a valid integer.");
+            return;
+        }
+        catch (DateTimeException e)
+        {
+            writeError("the argument must be in the range of valid time points.");
+            return;
+        }
+
+        Message constraint = new Message(since);
+
+        List<Message> msgList = owner.getDb()
+                .getMessagesOrderedByTimestamp();
+
+        int listSize = msgList.size();
+        int limit = Collections.binarySearch(msgList, constraint, Message.TIMESTAMP_COMPARATOR);
+        if (limit < 0)
+        {
+            limit = -limit - 1;
+        }
+        else
+        {
+            while (++limit < listSize
+                    && Message.TIMESTAMP_COMPARATOR.compare(constraint, msgList.get(limit)) == 0)
+            {
+            }
+
+        }
+
+        out.println(limit);
+        msgList.stream()
+                .limit(limit)
+                .map(Message::format)
+                .flatMap(List::stream)
+                .forEachOrdered(out::println);
+        out.flush();
     }
 
     private void onTopicCommand(final String instruction)
