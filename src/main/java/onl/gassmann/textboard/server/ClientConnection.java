@@ -1,5 +1,6 @@
 package onl.gassmann.textboard.server;
 
+import onl.gassmann.textboard.server.database.Message;
 import onl.gassmann.textboard.server.database.Topic;
 
 import java.io.*;
@@ -8,6 +9,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -118,9 +120,9 @@ class ClientConnection implements Runnable, Closeable
                         onListCommand(instruction);
                         break;
 
-                    // get messages by value
+                    // get messages by topic
                     case 'T':
-                        writeError("the value command is not yet implemented.");
+                        onTopicCommand(instruction);
                         break;
 
                     // get all message newer than the specified time point
@@ -159,6 +161,41 @@ class ClientConnection implements Runnable, Closeable
                 owner.notifyConnectionClosed(this);
             }
         }
+    }
+
+    private void onTopicCommand(final String instruction)
+    {
+        final int instructionLength = instruction.length();
+        if (instructionLength == 1 || instructionLength == 2 && instruction.charAt(1) == ' ')
+        {
+            writeError("the topic (T) command is missing it's argument.");
+            return;
+        }
+        else if (instructionLength == 2)
+        {
+            writeError("invalid command \"" + instruction + "\".");
+            return;
+        }
+
+        String topicId = instruction.substring(2);
+        Topic topic = owner.getDb().getTopic(topicId);
+        if (topic == null)
+        {
+            out.println("0");
+            return;
+        }
+
+        List<List<String>> contentList = topic.getMessages()
+                .stream()
+                .map(Message::format)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        out.println(contentList.size());
+        contentList.stream()
+                .flatMap(List::stream)
+                .forEachOrdered(out::println);
+        out.flush();
     }
 
     private boolean onExitCommand(final String instruction)
@@ -305,7 +342,7 @@ class ClientConnection implements Runnable, Closeable
             topicStream = topicStream.limit(numTopicLimit);
         }
         topicStream.map(topic -> "" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value)
-                .forEachOrdered(line -> out.println(line));
+                .forEachOrdered(out::println);
 
         out.flush();
     }
@@ -331,9 +368,8 @@ class ClientConnection implements Runnable, Closeable
         if (updatedTopics.size() > 0)
         {
             out.println("N " + updatedTopics.size());
-            for (int i = 0; i < updatedTopics.size(); ++i)
+            for (Topic topic : updatedTopics)
             {
-                Topic topic = updatedTopics.get(i);
                 out.println("" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value);
             }
         }

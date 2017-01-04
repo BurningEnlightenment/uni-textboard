@@ -85,7 +85,7 @@ class TextboardServer
                     LOGGER.warning("A server socket accept call timed out unexpectedly.");
                     continue;
                 }
-                // todo seperate client connection creation failure from thread creation failure
+                // todo separate client connection creation failure from thread creation failure
                 try
                 {
                     // create a connection handler
@@ -145,6 +145,17 @@ class TextboardServer
         catch (IOException exc)
         {
             LOGGER.warning("Failed to close the server socket during stop operation; details:\n" + exc.getMessage());
+        }
+        for (ClientConnection client : connectedClients)
+        {
+            try
+            {
+                client.close();
+            }
+            catch (IOException e)
+            {
+                LOGGER.warning("Failed to shutdown a client connection during server stop; details:\n" + e);
+            }
         }
     }
 
