@@ -26,9 +26,15 @@ class TextboardServer
             = new ConcurrentSkipListSet<>(Comparator.comparing(client -> client.id));
 
     private final DbContext db;
+    private final Charset networkCharset;
 
-    public TextboardServer(DbContext db)
+    public TextboardServer(DbContext db, Charset networkCharset)
     {
+        if (networkCharset == null)
+        {
+            throw new NullPointerException("networkCharset == null");
+        }
+        this.networkCharset = networkCharset;
         if (db == null)
         {
             throw new NullPointerException("db == null");
@@ -181,6 +187,6 @@ class TextboardServer
 
     public Charset charset()
     {
-        return Charset.defaultCharset();
+        return networkCharset;
     }
 }

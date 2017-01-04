@@ -5,6 +5,9 @@ import onl.gassmann.config.*;
 import onl.gassmann.textboard.server.database.DbContext;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,6 +25,7 @@ public class Program
 
     private static final String OPT_PORT = "port";
     private static final String OPT_DATABASE = "database_directory";
+    private static final String OPT_CHARSET = "charset";
 
     public static void main(String[] args)
     {
@@ -50,7 +54,18 @@ public class Program
                         "The option [port] must be an integer in the interval [0, 65535]. Actual value: " + port);
             }
 
-            srv = new TextboardServer(db);
+            Charset charset;
+            try
+            {
+                charset = Charset.forName(config.getString(OPT_CHARSET));
+            }
+            catch (IllegalCharsetNameException | UnsupportedCharsetException e)
+            {
+                String value = config.getString(OPT_CHARSET);
+                throw new ExecutionAbortedException("The configured charset \"" + value + "\" could not be loaded", e);
+            }
+
+            srv = new TextboardServer(db, charset);
             srv.run(port);
         }
         catch (ExecutionAbortedException e)
@@ -77,7 +92,11 @@ public class Program
                 .option(b -> b.name(OPT_DATABASE)
                         .type(OptionType.STRING)
                         .defaultValue("")
-                        .description("The path to the database directory."));
+                        .description("The path to the database directory."))
+                .option(b -> b.name(OPT_CHARSET)
+                        .type(OptionType.STRING)
+                        .defaultValue(Charset.defaultCharset().name())
+                        .description("The charset used to encode the network traffic."));
 
         // add configuration option sources
         try
