@@ -25,6 +25,7 @@ public class Message
 
     private static final Logger LOGGER = Logger.getLogger(Message.class.getName());
 
+    public final String topicValue;
     public final Instant timestamp;
     final Path path;
 
@@ -40,6 +41,7 @@ public class Message
         }
         this.timestamp = timestamp;
         path = null;
+        topicValue = null;
     }
 
     /**
@@ -105,23 +107,26 @@ public class Message
         {
             this.timestamp = tmp;
             this.path = path;
+            this.topicValue = expectedTopic;
         }
         else
         {
+            this.topicValue = null;
             this.timestamp = null;
             this.path = null;
         }
     }
 
-    private Message(Path path, Instant timestamp)
+    private Message(String topic, Instant timestamp, Path path)
     {
         this.path = path;
         this.timestamp = timestamp;
+        this.topicValue = topic;
     }
 
     boolean isValid()
     {
-        return timestamp != null && path != null && Files.isRegularFile(path);
+        return timestamp != null && topicValue != null && path != null && Files.isRegularFile(path);
     }
 
     public List<String> content()
@@ -180,8 +185,8 @@ public class Message
                                                        + "] is not a valid number (or maybe too big)", exc);
         }
 
-        String topic = metaLine.substring(separatorIndex + 1);
-        Path topicPath = topicDbPath.resolve(Topic.encodeFilename(topic));
+        final String topic = metaLine.substring(separatorIndex + 1);
+        final Path topicPath = topicDbPath.resolve(Topic.encodeFilename(topic));
         try
         {
             Files.createDirectories(topicPath);
@@ -191,7 +196,7 @@ public class Message
             throw new RuntimeException("Failed to create topic directory \"" + topicPath + "\"; details:\n" + e, e);
         }
 
-        Path tmpPath;
+        final Path tmpPath;
         try
         {
             tmpPath = Files.createTempFile(null, null);
@@ -224,7 +229,7 @@ public class Message
         }
 
         // create a random file name within the topic dir (we abuse an universally unique identifier for this purpose)
-        Path msgPath = topicPath.resolve(UUID.randomUUID()
+        final Path msgPath = topicPath.resolve(UUID.randomUUID()
                                                  .toString());
         try
         {
@@ -269,6 +274,6 @@ public class Message
             throw new RuntimeException("Failed to move the message to the topic directory.", e);
         }
 
-        return new Message(msgPath, timestamp);
+        return new Message(topic, timestamp, msgPath);
     }
 }

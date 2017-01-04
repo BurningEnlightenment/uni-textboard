@@ -8,6 +8,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -62,11 +63,11 @@ public class Topic
             {
                 // read messages
                 messages = Collections.unmodifiableList(
-                        msgPathStream.filter(msgPath -> Files.isRegularFile(msgPath))
+                        (ArrayList<Message>) msgPathStream.filter(msgPath -> Files.isRegularFile(msgPath))
                                 .map(msgPath -> new Message(msgPath, value))
                                 .filter(Message::isValid)
                                 .sorted(Message.TIMESTAMP_COMPARATOR)
-                                .collect(Collectors.toList()));
+                                .collect(Collectors.toCollection(ArrayList::new)));
 
                 lastPostTimestamp = messages.isEmpty() ? null : messages.get(0).timestamp;
             }
@@ -84,24 +85,45 @@ public class Topic
         }
     }
 
-    /*
-    Topic(Path topicDbPath, String topic)
+    private Topic(Topic old, Message msg)
     {
-        if (topicDbPath == null)
+        if (old == null)
         {
-            throw new NullPointerException("topicDbPath == null");
+            throw new NullPointerException("old == null");
         }
-        if (topic == null)
+        if (msg == null)
         {
-            throw new NullPointerException("topic == null");
+            throw new NullPointerException("msg == null");
         }
-        Path topicPath = topicDbPath.resolve(encodeFilename(topic));
-        if (!Files.isDirectory(topicPath))
+        if (!old.isValid())
         {
-            throw new IllegalArgumentException("The topic directory \"" + topicPath +"\" doesn't exist.");
+            throw new IllegalArgumentException("The old topic isn't valid.");
         }
+        if (!msg.isValid())
+        {
+            throw new IllegalArgumentException("The new message isn't valid");
+        }
+        if (!msg.path.startsWith(old.path))
+        {
+            throw new IllegalArgumentException("The new message isn't in the topic directory.");
+        }
+
+        value = old.value;
+        path = old.path;
+
+        ArrayList<Message> msgList = new ArrayList<>(old.messages.size() + 1);
+        msgList.add(msg);
+        msgList.addAll(old.messages);
+        Collections.sort(msgList, Message.TIMESTAMP_COMPARATOR);
+
+        messages = Collections.unmodifiableList(msgList);
+        lastPostTimestamp = messages.get(0).timestamp;
     }
-    */
+
+    Topic add(Message msg)
+    {
+        return new Topic(this, msg);
+    }
 
     boolean isValid()
     {

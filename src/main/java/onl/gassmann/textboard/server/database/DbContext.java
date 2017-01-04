@@ -134,8 +134,13 @@ public class DbContext
 
     private synchronized Topic updateIndex(Message msg)
     {
-        Path topicPath = msg.path.getParent();
-        Topic updated = new Topic(topicPath);
+        Topic updated;
+        {
+            Topic old = topics.get(msg.topicValue);
+            updated = old == null
+                      ? new Topic(msg.path.getParent())
+                      : old.add(msg);
+        }
         if (!updated.isValid())
         {
             throw new RuntimeException("Temporary failure: could not create topic index with the new message.");
