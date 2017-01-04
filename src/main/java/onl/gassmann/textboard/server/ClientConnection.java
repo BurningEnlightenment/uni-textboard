@@ -97,8 +97,9 @@ class ClientConnection implements Runnable,
                 }
                 catch (IOException exc)
                 {
-                    // todo read exception handling
-                    throw new RuntimeException("Failed to read the next instruction from " + remoteAddress, exc);
+                    LOGGER.warning("Failed to read the next instruction from " + remoteAddress + "." +
+                                           " Probably the client was killed; details:\n" + exc);
+                    break;
                 }
                 if (instruction.length() < 1)
                 {
