@@ -5,7 +5,7 @@ Ursprünglich mit UTF-8 kodiert und bedient sich des markdown Stils.
 - JDK & JRE 1.8
 
 
-# Kompilation
+# Kompilation & Ausführung
 Ich habe ein 10 Zeilen [gradle](https://gradle.org) build script
 mitgeliefert. Mithilfe des sogenannten gradle wrappers kann das Projekt
 über die Kommandozeile per `gradlew jar` (windows) oder `./gradlew jar`
@@ -30,8 +30,9 @@ Konfigurationsdatei haben. Es ist zu beachten, dass sowohl Schlüssel als
 auch Werte case sensitive interpretiert und auch keine Leerzeichen o.ä.
 entfernt werden (u.U. tut dies der Kommandozeileninterpreter!).
 
-Die Konfigurationsdatei ist eine einfache UTF-8 Text Datei, in welcher
-pro Zeile eine Option der Form `key=value` spezifiziert werden kann.
+Die Konfigurationsdatei ist eine einfache UTF-8 Text Datei, welche
+`server.cfg` heißen und sich im Ausführungsverzeichnis befinden muss. In
+Dieser kann pro Zeile eine Option der Form `key=value` spezifiziert werden.
 
 Wenn die Kommandozeile zur Konfiguration benutzt wird, so müssen die
 Argumente die Form `--key=value` haben und etwaige Leerzeichen im `value`
