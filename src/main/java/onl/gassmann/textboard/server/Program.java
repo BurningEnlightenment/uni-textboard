@@ -2,10 +2,14 @@ package onl.gassmann.textboard.server;
 
 
 import onl.gassmann.config.*;
+import onl.gassmann.textboard.server.database.DbContext;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.logging.FileHandler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
@@ -17,6 +21,7 @@ public class Program
     private static final Logger LOGGER = Logger.getLogger(Program.class.getName());
 
     private static final String OPT_PORT = "port";
+    private static final String OPT_DATABASE = "database_directory";
 
     public static void main(String[] args)
     {
@@ -27,6 +32,17 @@ public class Program
         TextboardServer srv;
         try
         {
+            DbContext db;
+            Path dbPath = Paths.get(config.getString(OPT_DATABASE));
+            try
+            {
+                db = new DbContext(dbPath);
+            }
+            catch (RuntimeException e)
+            {
+                throw new ExecutionAbortedException("Failed to read the message database from " + dbPath, e);
+            }
+
             int port = config.getInt(OPT_PORT);
             if (port < 0 || port > 65535)
             {
@@ -34,7 +50,7 @@ public class Program
                         "The option [port] must be an integer in the interval [0, 65535]. Actual value: " + port);
             }
 
-            srv = new TextboardServer();
+            srv = new TextboardServer(db);
             srv.run(port);
         }
         catch (ExecutionAbortedException e)
@@ -44,7 +60,7 @@ public class Program
         }
         catch (RuntimeException e)
         {
-            LOGGER.severe("unhandled exception:\n" + e.toString() + "\n\nexiting...");
+            LOGGER.severe("unhandled exception:\n" + e + "\n\nexiting...");
             returnCode = -1;
         }
         System.exit(returnCode);
@@ -57,13 +73,16 @@ public class Program
                 .option(b -> b.name(OPT_PORT)
                         .type(OptionType.INT)
                         .defaultValue("4242")
-                        .description("The port on which the server listens."));
+                        .description("The port on which the server listens."))
+                .option(b -> b.name(OPT_DATABASE)
+                        .type(OptionType.STRING)
+                        .defaultValue("")
+                        .description("The path to the database directory."));
 
         // add configuration option sources
         try
         {
-            configBuilder.source(new FileConfigurationSource(FileSystems.getDefault()
-                                                                     .getPath("server.cfg")));
+            configBuilder.source(new FileConfigurationSource(Paths.get("server.cfg")));
         }
         catch (RuntimeException e)
         {
@@ -101,13 +120,14 @@ public class Program
     private static void setupLogging()
     {
         Logger global = Logger.getGlobal();
-        //global.setLevel(Level.INFO);
+        global.setLevel(Level.INFO);
 
         SimpleFormatter fileFormatter = new SimpleFormatter();
         FileHandler logFileHandler;
         try
         {
             logFileHandler = new FileHandler("server.log");
+            logFileHandler.setLevel(Level.INFO);
             logFileHandler.setFormatter(fileFormatter);
             global.addHandler(logFileHandler);
         }

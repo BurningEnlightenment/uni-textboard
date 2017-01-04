@@ -27,19 +27,13 @@ class TextboardServer
 
     private final DbContext db;
 
-    public TextboardServer()
+    public TextboardServer(DbContext db)
     {
-        Path dbPath = Paths.get("")
-                .toAbsolutePath()
-                .resolve("db");
-        try
+        if (db == null)
         {
-            db = new DbContext(dbPath);
+            throw new NullPointerException("db == null");
         }
-        catch (RuntimeException e)
-        {
-            throw new ExecutionAbortedException("Failed to read the message database from " + dbPath, e);
-        }
+        this.db = db;
         try
         {
             serverSocket = new ServerSocket();
