@@ -1,10 +1,14 @@
 package onl.gassmann.textboard.server;
 
-import org.omg.CORBA.TIMEOUT;
+import onl.gassmann.textboard.server.database.DbContext;
+import onl.gassmann.textboard.server.database.Topic;
 
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -13,15 +17,27 @@ import java.util.logging.Logger;
 /**
  * Created by gassmann on 2017-01-03.
  */
-public class TextboardServer
+class TextboardServer
 {
     private static final Logger LOGGER = Logger.getLogger(TextboardServer.class.getName());
 
     private final ServerSocket serverSocket;
-    private final Set<ClientConnection> connectedClients = new ConcurrentSkipListSet<>();
+    private final Set<ClientConnection> connectedClients
+            = new ConcurrentSkipListSet<>(Comparator.comparing(client -> client.id));
+
+    private final DbContext db;
 
     public TextboardServer()
     {
+        Path dbPath = Paths.get("").toAbsolutePath().resolve("db");
+        try
+        {
+            db = new DbContext(dbPath);
+        }
+        catch (RuntimeException e)
+        {
+            throw new ExecutionAbortedException("Failed to read the message database from " + dbPath, e);
+        }
         try
         {
             serverSocket = new ServerSocket();
@@ -76,8 +92,10 @@ public class TextboardServer
                     ClientConnection client = new ClientConnection(clientSocket, this);
 
                     // create a new thread for the connection
-                    new Thread(client, "Client|" + client.getRemoteAddress())
+                    new Thread(client, "Client" + client.getRemoteAddress())
                             .start();
+
+                    connectedClients.add(client);
                 }
                 catch (RuntimeException exc)
                 {
@@ -138,6 +156,20 @@ public class TextboardServer
             throw new RuntimeException("client isn't closed");
         }
         connectedClients.remove(client);
+    }
+
+    public void addNewMessage(String[] lines)
+    {
+        Topic updated = db.put(lines);
+        for (ClientConnection client : connectedClients)
+        {
+            client.notifyTopicChanged(updated);
+        }
+    }
+
+    public DbContext getDb()
+    {
+        return db;
     }
 
     public Charset charset()

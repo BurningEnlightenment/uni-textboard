@@ -1,23 +1,36 @@
 package onl.gassmann.textboard.server;
 
+import onl.gassmann.textboard.server.database.Topic;
+
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Created by gassmann on 2017-01-03.
  */
-public class ClientConnection implements Runnable, Closeable
+class ClientConnection implements Runnable, Closeable
 {
     private static final Logger LOGGER = Logger.getLogger(TextboardServer.class.getName());
+    private static final AtomicInteger ID_PROVIDER = new AtomicInteger();
 
+    public final int id = ID_PROVIDER.getAndIncrement();
     private final TextboardServer owner;
     private final Socket connection;
     private final String remoteAddress;
 
     private final PrintWriter out;
     private final BufferedReader in;
+
+    private final ConcurrentLinkedQueue<Topic> topicChangeQueue = new ConcurrentLinkedQueue<>();
 
     public ClientConnection(Socket connection, TextboardServer owner)
     {
@@ -68,85 +81,263 @@ public class ClientConnection implements Runnable, Closeable
     @Override
     public void run()
     {
-        while (!connection.isInputShutdown())
-        {
-            final String instruction;
-            try
-            {
-                instruction = in.readLine();
-            }
-            catch (IOException exc)
-            {
-                // todo read exception handling
-                break;
-            }
-            int length = instruction.length();
-            if (length < 1)
-            {
-                writeError("Got an empty line instead of an instruction.");
-            }
-
-            switch (instruction.charAt(0))
-            {
-                // exit command
-                case 'X':
-                    if (length != 1)
-                    {
-                        // X followed by an argument
-                        writeError("the exit instruction (X) must not contain any arguments.");
-                        break;
-                    }
-                    LOGGER.info("received the exit command from" + remoteAddress);
-                    try
-                    {
-                        close();
-                    }
-                    catch (IOException exc)
-                    {
-                        LOGGER.warning("Failed to close client after receiving the exit command from "
-                                               + getRemoteAddress() + "; details:\n" + exc.getMessage());
-                    }
-                    break;
-
-                // message post command
-                case 'P':
-                    writeError("the post command is not yet implemented.");
-                    break;
-
-                // last changed topic command
-                case 'L':
-                    writeError("the list command is not yet implemented.");
-                    break;
-
-                // get messages by topic
-                case 'T':
-                    writeError("the topic command is not yet implemented.");
-                    break;
-
-                // get all message newer than the specified time point
-                case 'W':
-                    writeError("the retrieve command is not yet implemented.");
-                    break;
-            }
-        }
         try
         {
-            connection.close();
+            while (!connection.isInputShutdown())
+            {
+                final String instruction;
+                try
+                {
+                    instruction = in.readLine();
+                }
+                catch (IOException exc)
+                {
+                    // todo read exception handling
+                    throw new RuntimeException("Failed to read the next instruction from " + remoteAddress, exc);
+                }
+                if (instruction.length() < 1)
+                {
+                    writeError("Got an empty line instead of an instruction.");
+                }
+
+                boolean skipTopicUpdate = false;
+                switch (instruction.charAt(0))
+                {
+                    // exit command
+                    case 'X':
+                        skipTopicUpdate = onExitCommand(instruction);
+                        break;
+
+                    // message post command
+                    case 'P':
+                        onPutCommand(instruction);
+                        break;
+
+                    // last changed value command
+                    case 'L':
+                        onListCommand(instruction);
+                        break;
+
+                    // get messages by value
+                    case 'T':
+                        writeError("the value command is not yet implemented.");
+                        break;
+
+                    // get all message newer than the specified time point
+                    case 'W':
+                        writeError("the retrieve command is not yet implemented.");
+                        break;
+
+                    default:
+                        writeError("unknown command.");
+                        break;
+                }
+                if (!skipTopicUpdate)
+                {
+                    writeTopicUpdates();
+                }
+            }
         }
-        catch (IOException exc)
+        catch (RuntimeException e)
         {
-            LOGGER.severe("Failed to close the socket for " + getRemoteAddress() + "; details:\n" + exc.getMessage());
+            LOGGER.severe(
+                    "The connection to " + remoteAddress + " was interrupted by an unrecoverable error; details:\n"
+                            + e);
         }
         finally
         {
-            owner.notifyConnectionClosed(this);
+            try
+            {
+                connection.close();
+            }
+            catch (IOException exc)
+            {
+                LOGGER.severe("Failed to close the socket for " + getRemoteAddress() + "; details:\n" + exc.getMessage());
+            }
+            finally
+            {
+                owner.notifyConnectionClosed(this);
+            }
         }
+    }
+
+    private boolean onExitCommand(final String instruction)
+    {
+        if (instruction.length() != 1)
+        {
+            // X followed by an argument
+            writeError("the exit instruction (X) must not contain any arguments.");
+            return false;
+        }
+        LOGGER.info("received the exit command from " + remoteAddress);
+        try
+        {
+            close();
+        }
+        catch (IOException exc)
+        {
+            throw new RuntimeException("Failed to gracefully close client after receiving the exit command from "
+                                               + remoteAddress, exc);
+        }
+        return true;
+    }
+
+    private void onPutCommand(final String instruction)
+    {
+        if (instruction.length() != 1)
+        {
+            // P followed by an argument
+            writeError("the put instruction (P) must not contain any arguments.");
+            return;
+        }
+
+        int numMsgs;
+        try
+        {
+            String numMsgsLine = in.readLine();
+            numMsgs = Integer.parseInt(numMsgsLine);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(
+                    "Failed to read the number of messages after a put command due to an IOException from "
+                            + remoteAddress, e);
+        }
+        catch (NumberFormatException e)
+        {
+            writeError("The line after the P has to be a positive integer.");
+            return;
+        }
+        if (numMsgs < 0)
+        {
+            writeError("the number of messages must not be a negative number.");
+            return;
+        }
+
+        // receive messages
+        for (int i = 0; i < numMsgs; ++i)
+        {
+            int numLines;
+            try
+            {
+                String numLinesLine = in.readLine();
+                numLines = Integer.parseInt(numLinesLine);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(
+                        "Failed to read the number of lines of a new message due to an IOException from "
+                                + remoteAddress, e);
+            }
+            catch (NumberFormatException e)
+            {
+                writeError("The number of lines in a message has to be a positive integer.");
+                return;
+            }
+            if (numMsgs < 0)
+            {
+                writeError("the number of lines in a message must not be a negative number.");
+                return;
+            }
+            String[] lines = new String[numLines];
+            for (int j = 0; j < numLines; ++j)
+            {
+                try
+                {
+                    lines[j] = in.readLine();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(
+                            "Failed to read a line of a new message due to an IOException from "
+                                    + remoteAddress, e);
+                }
+            }
+            owner.addNewMessage(lines);
+        }
+    }
+
+    /**
+     * Handles the L [Count] instruction.
+     */
+    private void onListCommand(String instruction)
+    {
+        // default is to send all topics
+        int numTopicLimit = Integer.MAX_VALUE;
+
+        // validate and parse instruction arguments
+        if (instruction.length() == 2)
+        {
+            if (instruction.charAt(1) != ' ')
+            {
+                writeError("invalid instruction \"" + instruction + "\"");
+                return;
+            }
+        }
+        else if (instruction.length() > 2)
+        {
+            String argument = instruction.substring(2);
+            try
+            {
+                numTopicLimit = Integer.parseInt(argument);
+            }
+            catch (NumberFormatException e)
+            {
+                writeError("the argument for the list (L) command must be a positive integer.");
+                return;
+            }
+            if (numTopicLimit < 0)
+            {
+                writeError("the argument for the list (L) command must not be negative.");
+                return;
+            }
+        }
+
+        List<Topic> topics = owner.getDb().getTopicsOrderedByTimestamp();
+
+        // print the number of topics (one per line) we are going to send.
+        out.println(Integer.min(topics.size(), numTopicLimit));
+
+        // the stream pipeline will format the topics and print the resulting lines afterwords.
+        Stream<Topic> topicStream = topics.stream();
+        if (numTopicLimit != Integer.MAX_VALUE)
+        {
+            topicStream = topicStream.limit(numTopicLimit);
+        }
+        topicStream.map(topic -> "" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value)
+                .forEachOrdered(line -> out.println(line));
+
+        out.flush();
     }
 
     @Override
     public void close() throws IOException
     {
         connection.shutdownInput();
+    }
+
+    public void notifyTopicChanged(Topic topic)
+    {
+        topicChangeQueue.add(topic);
+    }
+
+    private void writeTopicUpdates()
+    {
+        ArrayList<Topic> updatedTopics = new ArrayList<>();
+        for (Topic topic = topicChangeQueue.poll(); topic != null; topic = topicChangeQueue.poll())
+        {
+            updatedTopics.add(topic);
+        }
+        if (updatedTopics.size() > 0)
+        {
+            out.println("N " + updatedTopics.size());
+            for (int i = 0; i < updatedTopics.size(); ++i)
+            {
+                Topic topic = updatedTopics.get(i);
+                out.println("" + topic.lastPostTimestamp.getEpochSecond() + " " + topic.value);
+            }
+        }
+        out.flush();
     }
 
     public boolean isClosed()

@@ -14,4 +14,9 @@ public class ExecutionAbortedException extends RuntimeException
     {
         super(reason);
     }
+
+    public ExecutionAbortedException(String reason, Throwable cause)
+    {
+        super(reason, cause);
+    }
 }
